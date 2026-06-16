@@ -10,6 +10,5 @@ wheels/
 .venv
 
 # Model checkpoints and image data
-checkpoints/
 data/images/*/*
 !data/images/*/.gitkeep
