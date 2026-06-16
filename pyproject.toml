@@ -14,6 +14,10 @@ dependencies = [
     "uvicorn>=0.34",
 ]
 
+[tool.vercel]
+entrypoint = "src.uddernet.app:app"
+
+
 [project.scripts]
 train-cnn = "uddernet.train_cnn:main"
 train-tabular = "uddernet.train_tabular:main"
