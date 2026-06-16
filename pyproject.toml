@@ -1,0 +1,23 @@
+[project]
+name = "uddernet"
+version = "0.1.0"
+description = "Neural networks for bovine mastitis detection from udder images and milk-sensor data"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "pandas>=2.2",
+    "python-multipart>=0.0.20",
+    "scikit-learn>=1.6",
+    "torch>=2.6",
+    "torchvision>=0.21",
+    "uvicorn>=0.34",
+]
+
+[project.scripts]
+train-cnn = "uddernet.train_cnn:main"
+train-tabular = "uddernet.train_tabular:main"
+
+[build-system]
+requires = ["uv_build>=0.11,<0.13"]
+build-backend = "uv_build"

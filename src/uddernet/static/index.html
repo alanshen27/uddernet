@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UdderNet — Mastitis Detection</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --text: #1d2733;
+    --muted: #66758a;
+    --accent: #2563eb;
+    --positive: #dc2626;
+    --negative: #16a34a;
+    --border: #dde3ea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 1.2rem 2rem;
+  }
+  header h1 { margin: 0; font-size: 1.3rem; }
+  header p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+  main {
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+  .card h2 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+  .card .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 1rem; }
+  label { display: block; font-size: 0.8rem; color: var(--muted); margin: 0.7rem 0 0.2rem; }
+  input, select {
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+  }
+  button {
+    margin-top: 1.2rem;
+    width: 100%;
+    padding: 0.6rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  .result {
+    margin-top: 1rem;
+    padding: 0.8rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    display: none;
+    white-space: pre-line;
+  }
+  .result.show { display: block; }
+  .result.positive { background: #fee2e2; color: var(--positive); }
+  .result.negative { background: #dcfce7; color: var(--negative); }
+  .result.error { background: #fef3c7; color: #92400e; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>UdderNet</h1>
+  <p>Test interface for the mastitis classification models</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Milk sample (tabular network)</h2>
+    <p class="sub">Enter milk-sensor measurements and classify with the MLP.</p>
+    <form id="tabular-form">
+      <div class="grid2">
+        <div><label>Day of lactation</label><input name="day" type="number" step="any" value="15" required></div>
+        <div><label>Milk temperature (&deg;C)</label><input name="milk_temperature" type="number" step="any" value="35.5" required></div>
+        <div><label>Milk pH</label><input name="milk_ph" type="number" step="any" value="6.6" required></div>
+        <div><label>Conductivity (mS/cm)</label><input name="milk_conductivity" type="number" step="any" value="4.8" required></div>
+        <div><label>Somatic cell count (&times;1000/mL)</label><input name="somatic_cell_count" type="number" step="any" value="150" required></div>
+        <div><label>Milk yield (L/day)</label><input name="milk_yield" type="number" step="any" value="20" required></div>
+      </div>
+      <label>Clotting observed</label>
+      <select name="clotting"><option value="0">No</option><option value="1">Yes</option></select>
+      <button type="submit">Classify sample</button>
+    </form>
+    <div id="tabular-result" class="result"></div>
+  </section>
+
+  <section class="card">
+    <h2>Udder image (CNN)</h2>
+    <p class="sub">Upload an image and classify with the convolutional network.</p>
+    <form id="image-form">
+      <label>Image file</label>
+      <input name="file" type="file" accept="image/*" required>
+      <button type="submit">Classify image</button>
+    </form>
+    <div id="image-result" class="result"></div>
+  </section>
+
+  <section class="card" style="grid-column: 1 / -1;">
+    <h2>Combined (image + sensor fusion)</h2>
+    <p class="sub">
+      Late fusion: the image model leads. When it predicts negative the blend is
+      0.7&nbsp;image&nbsp;/&nbsp;0.3&nbsp;sensor; when it predicts positive it flips to
+      0.3&nbsp;image&nbsp;/&nbsp;0.7&nbsp;sensor. Uses the values entered above plus an image.
+    </p>
+    <form id="combined-form">
+      <label>Image file</label>
+      <input name="file" type="file" accept="image/*" required>
+      <button type="submit">Classify combined</button>
+    </form>
+    <div id="combined-result" class="result"></div>
+  </section>
+</main>
+
+<script>
+function showResult(el, text, kind) {
+  el.textContent = text;
+  el.className = "result show " + kind;
+}
+
+document.getElementById("tabular-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const el = document.getElementById("tabular-result");
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  for (const k of Object.keys(data)) data[k] = Number(data[k]);
+  try {
+    const res = await fetch("/api/predict/tabular", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.detail || "Request failed");
+    const pct = (json.probability_mastitis * 100).toFixed(1);
+    showResult(el, `${json.label}\nP(mastitis) = ${pct}%`,
+               json.prediction === 1 ? "positive" : "negative");
+  } catch (err) {
+    showResult(el, err.message, "error");
+  }
+});
+
+document.getElementById("image-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const el = document.getElementById("image-result");
+  try {
+    const res = await fetch("/api/predict/image", {
+      method: "POST",
+      body: new FormData(e.target),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.detail || "Request failed");
+    const probs = Object.entries(json.probabilities)
+      .map(([c, p]) => `${c}: ${(p * 100).toFixed(1)}%`).join("\n");
+    showResult(el, `Prediction: ${json.prediction}\n${probs}`,
+               json.prediction.startsWith("positive") ? "positive" : "negative");
+  } catch (err) {
+    showResult(el, err.message, "error");
+  }
+});
+
+document.getElementById("combined-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const el = document.getElementById("combined-result");
+  // Pull the sensor values from the tabular form, add the uploaded image.
+  const body = new FormData(document.getElementById("tabular-form"));
+  const fileInput = e.target.querySelector('input[type="file"]');
+  body.set("file", fileInput.files[0]);
+  try {
+    const res = await fetch("/api/predict/combined", { method: "POST", body });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.detail || "Request failed");
+    const pct = (json.probability_mastitis * 100).toFixed(1);
+    const imgPct = (json.components.image_probability_mastitis * 100).toFixed(1);
+    const tabPct = (json.components.tabular_probability_mastitis * 100).toFixed(1);
+    showResult(el,
+      `${json.label}\nFused P(mastitis) = ${pct}%\n` +
+      `weights — image ${json.weights.image}, sensor ${json.weights.tabular}\n` +
+      `image alone: ${imgPct}%  |  sensor alone: ${tabPct}%`,
+      json.prediction === 1 ? "positive" : "negative");
+  } catch (err) {
+    showResult(el, err.message, "error");
+  }
+});
+</script>
+</body>
+</html>
