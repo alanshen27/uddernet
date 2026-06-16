@@ -1,640 +1,565 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UdderNet — Mastitis Detection</title>
-<style>
-  :root {
-    --bg: #0f1419;
-    --phone: #1a1f26;
-    --screen: #f8fafc;
-    --text: #0f172a;
-    --muted: #64748b;
-    --accent: #0d9488;
-    --accent-soft: #ccfbf1;
-    --positive: #dc2626;
-    --positive-bg: #fef2f2;
-    --negative: #059669;
-    --negative-bg: #ecfdf5;
-    --border: #e2e8f0;
-    --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>UdderNet</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .slideshow {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .screen {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+    }
+    section.screen:not(.active) {
+      display: none !important;
+    }
+    .screen.active {
+      display: flex !important;
+      flex: 1;
+      animation: screen-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    video { transform: scaleX(-1); }
+    input, select { font-family: inherit; transition: border-color 0.2s ease; }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+    @keyframes screen-in {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(16px) scale(0.98); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes backdrop-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
 
-  body {
-    min-height: 100vh;
-    font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(ellipse at top, #1e293b 0%, var(--bg) 55%);
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem 1rem;
-  }
+    .anim-stagger > * {
+      opacity: 0;
+      animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .anim-stagger > *:nth-child(1) { animation-delay: 0.05s; }
+    .anim-stagger > *:nth-child(2) { animation-delay: 0.12s; }
+    .anim-stagger > *:nth-child(3) { animation-delay: 0.19s; }
+    .anim-stagger > *:nth-child(4) { animation-delay: 0.26s; }
+    .anim-stagger > *:nth-child(5) { animation-delay: 0.33s; }
+    .anim-stagger > *:nth-child(6) { animation-delay: 0.40s; }
+    .anim-stagger > *:nth-child(7) { animation-delay: 0.47s; }
 
-  /* ── phone frame ── */
-  .phone-wrap {
-    position: relative;
-    width: min(390px, 100%);
-  }
+    .screen.active .anim-stagger > * {
+      opacity: 0;
+      animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
 
-  .phone {
-    background: #111;
-    border-radius: 48px;
-    padding: 12px;
-    box-shadow: var(--shadow), inset 0 0 0 2px #2a2a2a;
-  }
+    .btn-motion {
+      transition: transform 0.15s ease, background-color 0.2s ease, opacity 0.2s ease;
+    }
+    .btn-motion:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn-motion:active:not(:disabled) { transform: translateY(0) scale(0.98); }
 
-  .phone-inner {
-    background: var(--screen);
-    border-radius: 38px;
-    overflow: hidden;
-    position: relative;
-    height: 780px;
-    display: flex;
-    flex-direction: column;
-  }
+    .loading-pulse { animation: pulse-soft 1.4s ease-in-out infinite; }
 
-  .status-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 28px 6px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: var(--text);
-    flex-shrink: 0;
-  }
+    .progress-track {
+      height: 2px;
+      background: #e9e9e7;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #37352f;
+      transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    }
 
-  .dynamic-island {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 120px;
-    height: 34px;
-    background: #111;
-    border-radius: 20px;
-    z-index: 10;
-  }
+    #help-modal:not(.hidden) #help-backdrop { animation: backdrop-in 0.25s ease both; }
+    #help-modal:not(.hidden) .modal-panel { animation: modal-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-  /* ── screens ── */
-  .screens {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-  }
+    .result-reveal { animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-  .screen {
-    position: absolute;
-    inset: 0;
-    padding: 0 24px 16px;
-    display: flex;
-    flex-direction: column;
-    opacity: 0;
-    transform: translateX(40px);
-    pointer-events: none;
-    transition: opacity 0.35s ease, transform 0.35s ease;
-    overflow-y: auto;
-  }
+    .capture-flash {
+      animation: fade-in 0.2s ease;
+    }
 
-  .screen.active {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-  }
+    .cow-icon {
+      color: #37352f;
+      stroke: currentColor;
+      animation: cow-float 4s ease-in-out infinite;
+    }
+    @keyframes cow-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
 
-  .screen.exit-left {
-    opacity: 0;
-    transform: translateX(-40px);
-  }
+    .feature-card {
+      padding: 0.875rem 1rem;
+      border: 1px solid #e9e9e7;
+      border-radius: 6px;
+      background: #fff;
+      transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+    }
+    .feature-card:hover {
+      background: #f7f6f3;
+      border-color: #e3e2de;
+      transform: translateY(-2px);
+    }
+    .feature-card-title {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #37352f;
+    }
+    .feature-card-desc {
+      font-size: 0.8125rem;
+      color: #9b9a97;
+      margin-top: 0.15rem;
+    }
 
-  .screen-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.6rem;
-    margin-bottom: 1rem;
-    flex-shrink: 0;
-  }
+    .result-positive { color: #d44c47; }
+    .result-negative { color: #0f7b6c; }
+    .result-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 0.25rem 0.625rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+    .result-badge-positive { background: #fdebec; color: #d44c47; }
+    .result-badge-negative { background: #e7f3f0; color: #0f7b6c; }
 
-  .screen-icon.teal { background: var(--accent-soft); }
-  .screen-icon.blue { background: #dbeafe; }
-  .screen-icon.purple { background: #ede9fe; }
-  .screen-icon.amber { background: #fef3c7; }
+    #app.home-mode #top-chrome,
+    #app.home-mode #step-label,
+    #app.home-mode #help-btn { display: none; }
+    #app.home-mode footer { border-color: transparent; }
 
-  .screen h1 {
-    font-size: 1.55rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-    margin-bottom: 0.5rem;
-  }
-
-  .screen h2 {
-    font-size: 1.15rem;
-    font-weight: 600;
-    margin-bottom: 0.35rem;
-  }
-
-  .screen p, .screen .lead {
-    color: var(--muted);
-    font-size: 0.9rem;
-    line-height: 1.55;
-    margin-bottom: 1rem;
-  }
-
-  .badge {
-    display: inline-block;
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.25rem 0.6rem;
-    border-radius: 999px;
-    margin-bottom: 0.75rem;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-  }
-
-  .info-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 0.9rem 1rem;
-    margin-bottom: 0.75rem;
-    font-size: 0.82rem;
-    line-height: 1.5;
-    color: var(--muted);
-  }
-
-  .info-card strong {
-    display: block;
-    color: var(--text);
-    font-size: 0.88rem;
-    margin-bottom: 0.2rem;
-  }
-
-  /* ── form fields ── */
-  .field { margin-bottom: 0.75rem; }
-
-  .field label {
-    display: block;
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: var(--muted);
-    margin-bottom: 0.25rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .field input, .field select {
-    width: 100%;
-    padding: 0.65rem 0.75rem;
-    border: 1.5px solid var(--border);
-    border-radius: 12px;
-    font-size: 0.95rem;
-    background: #fff;
-    color: var(--text);
-    transition: border-color 0.2s;
-  }
-
-  .field input:focus, .field select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .field-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-  }
-
-  /* ── file upload zone ── */
-  .upload-zone {
-    border: 2px dashed var(--border);
-    border-radius: 16px;
-    padding: 2rem 1rem;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    background: #fff;
-    margin-bottom: 0.75rem;
-  }
-
-  .upload-zone:hover, .upload-zone.has-file {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-
-  .upload-zone .icon { font-size: 2rem; margin-bottom: 0.5rem; }
-  .upload-zone p { font-size: 0.85rem; color: var(--muted); }
-  .upload-zone .filename {
-    font-size: 0.8rem;
-    color: var(--accent);
-    font-weight: 500;
-    margin-top: 0.4rem;
-    word-break: break-all;
-  }
-
-  .upload-zone input { display: none; }
-
-  .preview-img {
-    width: 100%;
-    max-height: 180px;
-    object-fit: cover;
-    border-radius: 12px;
-    margin-top: 0.75rem;
-    display: none;
-  }
-
-  .preview-img.show { display: block; }
-
-  /* ── result card ── */
-  .result-card {
-    border-radius: 16px;
-    padding: 1.25rem;
-    text-align: center;
-    display: none;
-    margin-top: 0.5rem;
-  }
-
-  .result-card.show { display: block; }
-
-  .result-card.negative { background: var(--negative-bg); }
-  .result-card.positive { background: var(--positive-bg); }
-  .result-card.error { background: #fffbeb; }
-  .result-card.loading { background: #f1f5f9; }
-
-  .result-label {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-  }
-
-  .result-card.negative .result-label { color: var(--negative); }
-  .result-card.positive .result-label { color: var(--positive); }
-  .result-card.error .result-label { color: #b45309; }
-
-  .result-pct {
-    font-size: 2.2rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    margin: 0.5rem 0;
-  }
-
-  .result-detail {
-    font-size: 0.78rem;
-    color: var(--muted);
-    line-height: 1.6;
-    text-align: left;
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(0,0,0,0.06);
-  }
-
-  .result-detail div {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.25rem;
-  }
-
-  /* ── bottom nav ── */
-  .bottom-bar {
-    flex-shrink: 0;
-    padding: 12px 24px 28px;
-    background: linear-gradient(to top, var(--screen) 70%, transparent);
-  }
-
-  .dots {
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 14px;
-  }
-
-  .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--border);
-    transition: all 0.3s;
-  }
-
-  .dot.active {
-    background: var(--accent);
-    width: 20px;
-    border-radius: 4px;
-  }
-
-  .nav-row {
-    display: flex;
-    gap: 10px;
-  }
-
-  .btn {
-    flex: 1;
-    padding: 0.85rem;
-    border: none;
-    border-radius: 14px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: filter 0.15s, transform 0.1s;
-  }
-
-  .btn:active { transform: scale(0.97); }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .btn-primary:hover { filter: brightness(1.08); }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--muted);
-    border: 1.5px solid var(--border);
-    flex: 0 0 auto;
-    padding: 0.85rem 1.2rem;
-  }
-
-  .btn-ghost.hidden { display: none; }
-
-  .spinner {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    border: 2.5px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    vertical-align: middle;
-    margin-right: 6px;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  @media (max-height: 820px) {
-    .phone-inner { height: min(780px, 92vh); }
-  }
-</style>
+    @media (prefers-reduced-motion: reduce) {
+      .screen.active, .anim-stagger > *, .screen.active .anim-stagger > *,
+      .loading-pulse, .result-reveal, #help-modal:not(.hidden) .modal-panel,
+      #help-modal:not(.hidden) #help-backdrop { animation: none; opacity: 1; transform: none; }
+      .progress-fill { transition: none; }
+      .btn-motion { transition: background-color 0.2s ease; }
+      .btn-motion:hover:not(:disabled), .btn-motion:active:not(:disabled) { transform: none; }
+      .cow-icon { animation: none; }
+      .feature-card:hover { transform: none; }
+    }
+  </style>
 </head>
-<body>
+<body class="h-full bg-white text-[#37352f] overflow-hidden">
 
-<div class="phone-wrap">
-  <div class="phone">
-    <div class="phone-inner">
-      <div class="dynamic-island"></div>
-      <div class="status-bar">
-        <span>9:41</span>
-        <span>UdderNet</span>
-        <span>●●●</span>
-      </div>
+<div id="app" class="h-full flex flex-col home-mode">
 
-      <div class="screens" id="screens">
+  <div id="top-chrome" class="flex-shrink-0">
+    <div id="progress-track" class="progress-track">
+      <div id="progress" class="progress-fill" style="width:16.6%"></div>
+    </div>
+  </div>
 
-        <!-- 0 · Welcome -->
-        <section class="screen active" data-step="0">
-          <div class="screen-icon teal">🐄</div>
-          <span class="badge">iGEM Le Rosey 2026</span>
-          <h1>UdderNet</h1>
-          <p class="lead">Early mastitis detection for dairy herds — combining milk-sensor data and udder imagery in one screening flow.</p>
-          <div class="info-card">
-            <strong>What you'll do</strong>
-            Enter milk measurements, upload an udder photo, and get a fused diagnosis from our two neural networks.
+  <main class="flex-1 overflow-y-auto min-h-0">
+    <div class="max-w-md mx-auto px-6 py-4 min-h-full slideshow">
+
+      <!-- 0 welcome -->
+      <section class="screen active justify-center w-full" data-step="0">
+        <div class="anim-stagger w-full max-w-sm mx-auto text-center">
+          <div class="flex justify-center mb-5">
+            <svg class="cow-icon" width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden="true">
+              <ellipse cx="26" cy="28" rx="17" ry="15" stroke-width="1.5"/>
+              <path d="M11 22 L7 16 L14 20" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M41 22 L45 16 L38 20" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M19 14 Q17 7 15 9" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M33 14 Q35 7 37 9" stroke-width="1.5" stroke-linecap="round"/>
+              <ellipse cx="26" cy="32" rx="7.5" ry="5.5" stroke-width="1.5"/>
+              <circle cx="23.5" cy="32" r="1" fill="currentColor" stroke="none"/>
+              <circle cx="28.5" cy="32" r="1" fill="currentColor" stroke="none"/>
+              <circle cx="21" cy="25" r="1.25" fill="currentColor" stroke="none"/>
+              <circle cx="31" cy="25" r="1.25" fill="currentColor" stroke="none"/>
+            </svg>
           </div>
-          <div class="info-card">
-            <strong>Swipe through</strong>
-            This walkthrough takes about a minute. Tap <em>Continue</em> to begin.
+          <h1 class="text-[2.5rem] font-bold tracking-tight mb-2">UdderNet</h1>
+          <p class="text-sm text-[#9b9a97] mb-3">iGEM Le Rosey 2026</p>
+          <p class="text-base text-[#787774] leading-relaxed mb-8">Screen cows for mastitis using milk sensors and an udder photo.</p>
+          <div class="flex flex-col gap-2 w-full text-left">
+          <div class="feature-card w-full">
+            <p class="feature-card-title">Sensor model</p>
+            <p class="feature-card-desc">7 milk measurements</p>
           </div>
-        </section>
-
-        <!-- 1 · MLP intro -->
-        <section class="screen" data-step="1">
-          <div class="screen-icon blue">📊</div>
-          <h2>Step 1 — Sensor data</h2>
-          <p>Our <strong>MastitisMLP</strong> reads seven milk measurements — temperature, pH, conductivity, somatic cell count, yield, clotting, and lactation day — and outputs a mastitis probability.</p>
-          <div class="info-card">
-            <strong>How it works</strong>
-            A 3-layer feed-forward network trained on 800 labelled milk samples. Inputs are standardised; output is P(mastitis).
+          <div class="feature-card w-full">
+            <p class="feature-card-title">Image model</p>
+            <p class="feature-card-desc">ResNet-18 on udder photos</p>
           </div>
-        </section>
-
-        <!-- 2 · Sensor form -->
-        <section class="screen" data-step="2">
-          <div class="screen-icon blue">🥛</div>
-          <h2>Enter milk sample</h2>
-          <p>Fill in the sensor readings for this cow.</p>
-          <form id="tabular-form">
-            <div class="field-row">
-              <div class="field"><label>Day of lactation</label><input name="day" type="number" step="any" value="15" required></div>
-              <div class="field"><label>Temp (°C)</label><input name="milk_temperature" type="number" step="any" value="35.5" required></div>
-              <div class="field"><label>pH</label><input name="milk_ph" type="number" step="any" value="6.6" required></div>
-              <div class="field"><label>Conductivity</label><input name="milk_conductivity" type="number" step="any" value="4.8" required></div>
-              <div class="field"><label>SCC (×1000/mL)</label><input name="somatic_cell_count" type="number" step="any" value="150" required></div>
-              <div class="field"><label>Yield (L/day)</label><input name="milk_yield" type="number" step="any" value="20" required></div>
-            </div>
-            <div class="field">
-              <label>Clotting observed</label>
-              <select name="clotting"><option value="0">No</option><option value="1">Yes</option></select>
-            </div>
-          </form>
-        </section>
-
-        <!-- 3 · CNN intro -->
-        <section class="screen" data-step="3">
-          <div class="screen-icon purple">📷</div>
-          <h2>Step 2 — Udder image</h2>
-          <p>Our <strong>ResNet-18</strong> CNN classifies udder photographs. It was pretrained on ImageNet and fine-tuned on ~600 labelled images from the iGEN dataset.</p>
-          <div class="info-card">
-            <strong>How it works</strong>
-            Images are resized to 224×224, passed through a convolutional backbone, and classified as <em>positive</em> (mastitis) or <em>negative</em> (healthy).
+          <div class="feature-card w-full">
+            <p class="feature-card-title">Fusion</p>
+            <p class="feature-card-desc">Both predictions combined</p>
           </div>
-        </section>
-
-        <!-- 4 · Image upload -->
-        <section class="screen" data-step="4">
-          <div class="screen-icon purple">🖼️</div>
-          <h2>Upload udder photo</h2>
-          <p>Take or select a clear image of the udder.</p>
-          <label class="upload-zone" id="upload-label">
-            <input type="file" id="image-input" accept="image/*">
-            <div class="icon">📁</div>
-            <p>Tap to choose an image</p>
-            <div class="filename" id="filename"></div>
-            <img class="preview-img" id="preview" alt="Preview">
-          </label>
-        </section>
-
-        <!-- 5 · Fusion intro -->
-        <section class="screen" data-step="5">
-          <div class="screen-icon amber">🔀</div>
-          <h2>Step 3 — Fusion</h2>
-          <p>Neither modality alone tells the full story. <strong>Late fusion</strong> blends both probabilities with image-led weighting:</p>
-          <div class="info-card">
-            <strong>Image says negative</strong>
-            Trust the photo more → 70% image + 30% sensor
           </div>
-          <div class="info-card">
-            <strong>Image says positive</strong>
-            Confirm with sensors → 30% image + 70% sensor
-          </div>
-          <p style="margin-top:0.5rem">Tap <em>Analyse</em> on the next screen to run the combined model.</p>
-        </section>
-
-        <!-- 6 · Results -->
-        <section class="screen" data-step="6">
-          <div class="screen-icon teal">✅</div>
-          <h2>Diagnosis</h2>
-          <p>Combined prediction from your sensor data and udder image.</p>
-          <div class="result-card" id="result-card">
-            <div class="result-label" id="result-label">—</div>
-            <div class="result-pct" id="result-pct">—</div>
-            <div class="result-detail" id="result-detail"></div>
-          </div>
-        </section>
-
-      </div>
-
-      <div class="bottom-bar">
-        <div class="dots" id="dots"></div>
-        <div class="nav-row">
-          <button class="btn btn-ghost hidden" id="btn-back">Back</button>
-          <button class="btn btn-primary" id="btn-next">Continue</button>
         </div>
-      </div>
+      </section>
+
+      <!-- 1 sensor intro -->
+      <section class="screen justify-center" data-step="1">
+        <div class="anim-stagger text-left">
+          <h2 class="text-xl font-semibold mb-3">Milk sensor data</h2>
+          <p class="text-sm text-[#6f6e69] leading-relaxed max-w-sm">MastitisMLP reads seven on-farm measurements and outputs a mastitis probability.</p>
+          <p class="text-sm text-[#9b9a97] mt-6">Temperature · pH · Conductivity · SCC · Yield · Clotting · Day</p>
+        </div>
+      </section>
+
+      <!-- 2 sensor form -->
+      <section class="screen items-center" data-step="2">
+        <h2 class="text-xl font-semibold mb-1 text-center">Enter sample</h2>
+        <p class="text-sm text-[#9b9a97] mb-6 text-center">Sensor readings for this cow.</p>
+        <form id="tabular-form" class="w-full space-y-4">
+          <div class="grid grid-cols-2 gap-x-4 gap-y-4">
+            <div><label class="text-xs text-[#9b9a97]">Day</label>
+              <input name="day" type="number" step="any" value="15" required class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent"></div>
+            <div><label class="text-xs text-[#9b9a97]">Temp °C</label>
+              <input name="milk_temperature" type="number" step="any" value="35.5" required class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent"></div>
+            <div><label class="text-xs text-[#9b9a97]">pH</label>
+              <input name="milk_ph" type="number" step="any" value="6.6" required class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent"></div>
+            <div><label class="text-xs text-[#9b9a97]">Conductivity</label>
+              <input name="milk_conductivity" type="number" step="any" value="4.8" required class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent"></div>
+            <div><label class="text-xs text-[#9b9a97]">SCC ×1000</label>
+              <input name="somatic_cell_count" type="number" step="any" value="150" required class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent"></div>
+            <div><label class="text-xs text-[#9b9a97]">Yield L/day</label>
+              <input name="milk_yield" type="number" step="any" value="20" required class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent"></div>
+          </div>
+          <div><label class="text-xs text-[#9b9a97]">Clotting</label>
+            <select name="clotting" class="mt-1 w-full border-0 border-b border-[#e9e9e7] py-2 text-sm focus:outline-none focus:border-[#37352f] bg-transparent">
+              <option value="0">No</option><option value="1">Yes</option>
+            </select></div>
+        </form>
+      </section>
+
+      <!-- 3 camera -->
+      <section class="screen items-center" data-step="3">
+        <h2 class="text-xl font-semibold mb-1 text-center">Udder photo</h2>
+        <p class="text-sm text-[#9b9a97] mb-4 text-center">Use your camera or upload an image.</p>
+        <div class="w-full relative rounded-lg overflow-hidden bg-[#f7f6f3] aspect-[4/3] mb-3">
+          <video id="camera" autoplay playsinline muted class="w-full h-full object-cover"></video>
+          <canvas id="canvas" class="hidden"></canvas>
+          <img id="captured" class="hidden w-full h-full object-cover absolute inset-0" alt="Captured">
+          <div id="camera-placeholder" class="absolute inset-0 flex items-center justify-center text-sm text-[#9b9a97]">Starting camera…</div>
+        </div>
+        <div class="w-full flex gap-2 mb-3">
+          <button id="btn-capture" class="flex-1 py-2.5 text-sm font-medium bg-[#37352f] text-white rounded-md hover:bg-[#2f2e2a] btn-motion">Capture</button>
+          <button id="btn-retake" class="hidden flex-1 py-2.5 text-sm font-medium border border-[#e9e9e7] rounded-md hover:bg-[#f7f6f3] btn-motion">Retake</button>
+        </div>
+        <label class="w-full text-center text-sm text-[#9b9a97] hover:text-[#37352f] cursor-pointer">
+          <input type="file" id="file-input" accept="image/*" class="hidden">
+          Upload from gallery
+        </label>
+        <p id="image-status" class="text-xs text-center text-[#9b9a97] mt-2"></p>
+      </section>
+
+      <!-- 4 fusion -->
+      <section class="screen items-center justify-center text-center" data-step="4">
+        <h2 class="text-xl font-semibold mb-3">Fusion</h2>
+        <p class="text-sm text-[#6f6e69] leading-relaxed max-w-xs mb-6">Both models run independently. Their probabilities are blended with image-led weighting.</p>
+        <div class="w-full text-sm space-y-3 text-left max-w-xs mx-auto">
+          <p><span class="text-[#0f7b6c] font-medium">Image negative</span> → 70% image, 30% sensor</p>
+          <p><span class="text-[#d44c47] font-medium">Image positive</span> → 30% image, 70% sensor</p>
+        </div>
+      </section>
+
+      <!-- 5 results -->
+      <section class="screen items-center justify-center text-center" data-step="5">
+        <p id="result-badge" class="result-badge hidden"></p>
+        <h2 id="result-title" class="text-xl font-semibold mb-1">Analysing…</h2>
+        <p id="result-sub" class="text-sm text-[#9b9a97] mb-6">Running both models</p>
+        <p id="result-pct" class="text-4xl font-semibold mb-1 hidden">—</p>
+        <p id="result-pct-label" class="text-xs text-[#9b9a97] mb-6 hidden">P(mastitis)</p>
+        <div id="result-breakdown" class="hidden w-full max-w-xs text-sm text-[#6f6e69] space-y-2">
+          <p class="flex justify-between"><span>Image</span><span id="bd-image">—</span></p>
+          <p class="flex justify-between"><span>Sensor</span><span id="bd-sensor">—</span></p>
+          <p class="flex justify-between"><span>Weights</span><span id="bd-weights" class="text-xs">—</span></p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- bottom nav -->
+  <footer class="flex-shrink-0 px-6 py-4 border-t border-[#e9e9e7]">
+    <div class="max-w-md mx-auto flex items-center gap-3 w-full">
+      <span class="text-xs text-[#9b9a97] shrink-0" id="step-label">1/6</span>
+      <button id="help-btn" class="text-xs text-[#9b9a97] hover:text-[#37352f] btn-motion shrink-0" aria-label="About">About</button>
+      <button id="btn-back" class="hidden text-sm text-[#9b9a97] hover:text-[#37352f] px-2 btn-motion shrink-0">Back</button>
+      <button id="btn-next" class="flex-1 min-w-0 py-2.5 text-sm font-medium bg-[#37352f] text-white rounded-md hover:bg-[#2f2e2a] btn-motion">Continue</button>
+    </div>
+  </footer>
+</div>
+
+<!-- help -->
+<div id="help-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6">
+  <div class="absolute inset-0 bg-black/20" id="help-backdrop"></div>
+  <div class="modal-panel relative bg-white rounded-lg w-full max-w-sm p-6 shadow-lg border border-[#e9e9e7] max-h-[80vh] overflow-y-auto">
+    <div class="flex justify-between items-start mb-4">
+      <h3 class="font-semibold">About UdderNet</h3>
+      <button id="help-close" class="text-[#9b9a97] hover:text-[#37352f] text-lg leading-none">&times;</button>
+    </div>
+    <div class="text-sm text-[#6f6e69] space-y-3 leading-relaxed">
+      <p>iGEM Le Rosey 2026 project for early mastitis detection in dairy herds.</p>
+      <p><strong class="text-[#37352f]">MastitisMLP</strong> — neural network on 7 milk-sensor measurements.</p>
+      <p><strong class="text-[#37352f]">ResNet-18</strong> — classifies udder photos from the iGEN dataset.</p>
+      <p><strong class="text-[#37352f]">Late fusion</strong> — blends both model outputs with image-led weighting (70/30 or 30/70).</p>
     </div>
   </div>
 </div>
 
 <script>
-const TOTAL = 7;
-let step = 0;
-let analysing = false;
+const TOTAL = 6;
+let step = 0, analysing = false, capturedBlob = null, cameraStream = null;
 
-const screens = document.querySelectorAll(".screen");
-const dotsEl = document.getElementById("dots");
-const btnBack = document.getElementById("btn-back");
-const btnNext = document.getElementById("btn-next");
-const imageInput = document.getElementById("image-input");
-const uploadLabel = document.getElementById("upload-label");
-const filenameEl = document.getElementById("filename");
-const previewEl = document.getElementById("preview");
-const resultCard = document.getElementById("result-card");
+const app = document.getElementById('app');
+const progress = document.getElementById('progress');
+const screens = document.querySelectorAll('.screen');
+const btnBack = document.getElementById('btn-back');
+const btnNext = document.getElementById('btn-next');
+const stepLabel = document.getElementById('step-label');
 
-// Build progress dots
-for (let i = 0; i < TOTAL; i++) {
-  const d = document.createElement("div");
-  d.className = "dot" + (i === 0 ? " active" : "");
-  dotsEl.appendChild(d);
+function restartStagger(screen) {
+  screen.querySelectorAll('.anim-stagger > *').forEach(el => {
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = '';
+  });
 }
-const dots = dotsEl.querySelectorAll(".dot");
+
+function updateChrome() {
+  app.classList.toggle('home-mode', step === 0);
+}
+
+function animateValue(el, target, duration = 700) {
+  const start = performance.now();
+  const from = 0;
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = (from + (target - from) * eased).toFixed(1) + '%';
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function clearResultColors(title, sub, pct, badge) {
+  title.classList.remove('result-positive', 'result-negative');
+  sub.classList.remove('result-positive', 'result-negative');
+  pct.classList.remove('result-positive', 'result-negative');
+  badge.classList.remove('result-badge-positive', 'result-badge-negative');
+  badge.classList.add('hidden');
+}
+const camera = document.getElementById('camera');
+const canvas = document.getElementById('canvas');
+const captured = document.getElementById('captured');
+const cameraPlaceholder = document.getElementById('camera-placeholder');
+const btnCapture = document.getElementById('btn-capture');
+const btnRetake = document.getElementById('btn-retake');
+const fileInput = document.getElementById('file-input');
+const imageStatus = document.getElementById('image-status');
 
 function goTo(n) {
   if (n < 0 || n >= TOTAL || analysing) return;
-  screens[step].classList.remove("active");
-  screens[step].classList.add(n > step ? "exit-left" : "");
+  screens[step].classList.remove('active');
   step = n;
-  screens[step].classList.remove("exit-left");
-  screens[step].classList.add("active");
-  dots.forEach((d, i) => d.classList.toggle("active", i === step));
-  btnBack.classList.toggle("hidden", step === 0);
-  updateNextLabel();
-  if (step < TOTAL - 1) resetResult();
-  if (step === TOTAL - 1) runCombined();
+  screens[step].classList.add('active');
+  restartStagger(screens[step]);
+  progress.style.width = ((step + 1) / TOTAL * 100) + '%';
+  stepLabel.textContent = (step + 1) + '/' + TOTAL;
+  btnBack.classList.toggle('hidden', step === 0);
+  updateChrome();
+  const labels = ['Continue', 'Continue', 'Continue', 'Continue', 'See results', 'Analyse'];
+  btnNext.textContent = labels[step] || 'Continue';
+  if (step === 3) startCamera(); else stopCamera();
+  if (step === 5) runCombined();
 }
 
-function updateNextLabel() {
-  if (step === TOTAL - 1) btnNext.textContent = "Analyse";
-  else if (step === TOTAL - 2) btnNext.textContent = "See results";
-  else btnNext.textContent = "Continue";
+updateChrome();
+
+async function startCamera() {
+  if (cameraStream) return;
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: false,
+    });
+    camera.srcObject = cameraStream;
+    cameraPlaceholder.classList.add('hidden');
+  } catch {
+    cameraPlaceholder.textContent = 'Camera unavailable — upload instead';
+  }
 }
 
-function resetResult() {
-  resultCard.className = "result-card";
-  document.getElementById("result-label").textContent = "—";
-  document.getElementById("result-pct").textContent = "—";
-  document.getElementById("result-detail").innerHTML = "";
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
 }
 
-function showResult(label, pct, kind, detailHtml) {
-  resultCard.className = "result-card show " + kind;
-  document.getElementById("result-label").textContent = label;
-  document.getElementById("result-pct").textContent = pct;
-  document.getElementById("result-detail").innerHTML = detailHtml;
+function setImage(blob, label) {
+  capturedBlob = blob;
+  imageStatus.textContent = label;
 }
 
-// Image preview
-imageInput.addEventListener("change", () => {
-  const file = imageInput.files[0];
-  if (!file) return;
-  filenameEl.textContent = file.name;
-  uploadLabel.classList.add("has-file");
-  const reader = new FileReader();
-  reader.onload = e => { previewEl.src = e.target.result; previewEl.classList.add("show"); };
-  reader.readAsDataURL(file);
+btnCapture.addEventListener('click', () => {
+  if (!cameraStream) return;
+  canvas.width = camera.videoWidth;
+  canvas.height = camera.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(camera, 0, 0);
+  canvas.toBlob(blob => {
+    captured.src = URL.createObjectURL(blob);
+    captured.classList.remove('hidden');
+    captured.classList.add('capture-flash');
+    captured.addEventListener('animationend', () => captured.classList.remove('capture-flash'), { once: true });
+    camera.classList.add('hidden');
+    btnCapture.classList.add('hidden');
+    btnRetake.classList.remove('hidden');
+    setImage(blob, 'Captured');
+  }, 'image/jpeg', 0.92);
 });
 
+btnRetake.addEventListener('click', () => {
+  capturedBlob = null;
+  captured.classList.add('hidden');
+  camera.classList.remove('hidden');
+  btnCapture.classList.remove('hidden');
+  btnRetake.classList.add('hidden');
+  imageStatus.textContent = '';
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  capturedBlob = file;
+  captured.src = URL.createObjectURL(file);
+  captured.classList.remove('hidden');
+  camera.classList.add('hidden');
+  btnCapture.classList.add('hidden');
+  btnRetake.classList.remove('hidden');
+  setImage(file, file.name);
+});
+
+function showResult(state, data) {
+  const title = document.getElementById('result-title');
+  const sub = document.getElementById('result-sub');
+  const pct = document.getElementById('result-pct');
+  const pctLabel = document.getElementById('result-pct-label');
+  const breakdown = document.getElementById('result-breakdown');
+  const badge = document.getElementById('result-badge');
+
+  title.classList.remove('loading-pulse');
+  clearResultColors(title, sub, pct, badge);
+
+  if (state === 'loading') {
+    title.textContent = 'Analysing…';
+    title.classList.add('loading-pulse');
+    sub.textContent = 'Running both models';
+    pct.classList.add('hidden'); pctLabel.classList.add('hidden'); breakdown.classList.add('hidden');
+    return;
+  }
+  if (state === 'error') {
+    title.textContent = 'Error';
+    sub.textContent = data;
+    pct.classList.add('hidden'); pctLabel.classList.add('hidden'); breakdown.classList.add('hidden');
+    btnNext.textContent = 'Retry';
+    return;
+  }
+
+  const isPos = data.prediction === 1;
+  const colorClass = isPos ? 'result-positive' : 'result-negative';
+  const badgeClass = isPos ? 'result-badge-positive' : 'result-badge-negative';
+
+  badge.textContent = isPos ? 'Positive' : 'Negative';
+  badge.classList.remove('hidden');
+  badge.classList.add(badgeClass, 'result-reveal');
+
+  title.textContent = data.label;
+  title.classList.add(colorClass);
+  sub.textContent = isPos ? 'Mastitis detected — review recommended' : 'Cow appears healthy';
+  sub.classList.add(colorClass);
+
+  pct.classList.remove('hidden');
+  pct.classList.add('result-reveal', colorClass);
+  pctLabel.classList.remove('hidden');
+  pctLabel.classList.add('result-reveal');
+  animateValue(pct, data.probability_mastitis * 100);
+
+  const bdImage = document.getElementById('bd-image');
+  const bdSensor = document.getElementById('bd-sensor');
+  bdImage.textContent = (data.components.image_probability_mastitis * 100).toFixed(1) + '%';
+  bdSensor.textContent = (data.components.tabular_probability_mastitis * 100).toFixed(1) + '%';
+  bdImage.className = data.components.image_probability_mastitis >= 0.5 ? 'result-positive' : 'result-negative';
+  bdSensor.className = data.components.tabular_probability_mastitis >= 0.5 ? 'result-positive' : 'result-negative';
+
+  document.getElementById('bd-weights').textContent = data.weights.image + ' / ' + data.weights.tabular;
+  breakdown.classList.remove('hidden');
+  breakdown.classList.add('result-reveal');
+  btnNext.textContent = 'Done';
+}
+
 async function runCombined() {
-  if (!imageInput.files[0]) {
-    showResult("No image", "Upload required", "error", "<p>Go back and select an udder photo first.</p>");
+  if (!capturedBlob) {
+    showResult('error', 'No image — go back and capture or upload one.');
     return;
   }
   analysing = true;
   btnNext.disabled = true;
-  btnNext.textContent = "Analysing…";
-  showResult("Analysing…", "—", "loading", "");
+  btnNext.textContent = 'Analysing…';
+  showResult('loading');
 
-  const body = new FormData(document.getElementById("tabular-form"));
-  body.set("file", imageInput.files[0]);
+  const body = new FormData(document.getElementById('tabular-form'));
+  body.set('file', capturedBlob, 'udder.jpg');
 
   try {
-    const res = await fetch("/api/predict/combined", { method: "POST", body });
+    const res = await fetch('/api/predict/combined', { method: 'POST', body });
     const json = await res.json();
-    if (!res.ok) throw new Error(json.detail || "Request failed");
-
-    const pct = (json.probability_mastitis * 100).toFixed(1);
-    const imgPct = (json.components.image_probability_mastitis * 100).toFixed(1);
-    const tabPct = (json.components.tabular_probability_mastitis * 100).toFixed(1);
-    const kind = json.prediction === 1 ? "positive" : "negative";
-
-    showResult(
-      json.label,
-      pct + "%",
-      kind,
-      `<div><span>Image model</span><span>${imgPct}%</span></div>
-       <div><span>Sensor model</span><span>${tabPct}%</span></div>
-       <div><span>Fusion weights</span><span>${json.weights.image} img / ${json.weights.tabular} sensor</span></div>`
-    );
-    btnNext.textContent = "Done";
+    if (!res.ok) throw new Error(json.detail || 'Request failed');
+    showResult('ok', json);
   } catch (err) {
-    showResult("Error", "—", "error", `<p>${err.message}</p>`);
-    btnNext.textContent = "Retry";
+    showResult('error', err.message);
   } finally {
     analysing = false;
     btnNext.disabled = false;
   }
 }
 
-btnNext.addEventListener("click", async () => {
+btnNext.addEventListener('click', async () => {
   if (step === TOTAL - 1) {
-    if (btnNext.textContent === "Retry" || !resultCard.classList.contains("show")) {
-      await runCombined();
-    }
+    if (btnNext.textContent === 'Retry') await runCombined();
     return;
   }
   goTo(step + 1);
 });
+btnBack.addEventListener('click', () => goTo(step - 1));
 
-btnBack.addEventListener("click", () => goTo(step - 1));
+const modal = document.getElementById('help-modal');
+document.getElementById('help-btn').addEventListener('click', () => modal.classList.remove('hidden'));
+document.getElementById('help-close').addEventListener('click', () => modal.classList.add('hidden'));
+document.getElementById('help-backdrop').addEventListener('click', () => modal.classList.add('hidden'));
 </script>
 </body>
 </html>
